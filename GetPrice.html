@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>رادار التداول الفوري - إشعارات</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; background: #0a0a0f; color: #e0e0e0; margin: 0; }
+        h2 { text-align: center; color: #f0b90b; margin-bottom: 5px; font-size: 22px; }
+        .subtitle { text-align: center; font-size: 13px; color: #888; margin-bottom: 16px; }
+
+        .mode-switcher { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+        .mode-btn { padding: 12px 10px; border-radius: 8px; border: 1px solid #2e2e3d; background: #15151e; color: #ccc; font-weight: bold; font-size: 13px; cursor: pointer; transition: 0.2s; }
+        .mode-btn.active { background: #1f2a1f; border-color: #00ff88; color: #00ff88; box-shadow: 0 0 10px rgba(0,255,136,0.15); }
+        .mode-btn.swing.active { background: #2b2308; border-color: #f0b90b; color: #f0b90b; box-shadow: 0 0 10px rgba(240,185,11,0.15); }
+
+        #timer-bar { text-align: center; color: #f0b90b; font-size: 13px; margin-bottom: 10px; font-weight: bold; background: #1a1a20; padding: 10px; border-radius: 8px; border: 1px solid #333; transition: 0.3s; }
+        #timer-bar.flash { background: #f0b90b; color: #000; }
+
+        .status-bar { text-align: center; font-size: 12px; color: #aaa; margin-bottom: 15px; background: #121218; padding: 8px 12px; border-radius: 8px; border: 1px solid #242430; }
+
+        .macro-alert { background: #3a2a00; border: 1px solid #f0b90b; color: #f0b90b; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 13px; text-align: center; }
+
+        .card { background: #15151e; padding: 15px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); border: 1px solid #2a2a35; position: relative; overflow: hidden; }
+        .card.buy-zone { border-color: #00ff88; }
+        .card.sell-zone { border-color: #ff4444; }
+        .card.wait-zone { border-color: #f0b90b; }
+
+        .card::before { content: ''; position: absolute; top: 0; right: 0; width: 5px; height: 100%; background: #333; }
+        .card.buy-zone::before { background: #00ff88; box-shadow: 0 0 10px #00ff88; }
+        .card.sell-zone::before { background: #ff4444; box-shadow: 0 0 10px #ff4444; }
+        .card.wait-zone::before { background: #f0b90b; box-shadow: 0 0 10px #f0b90b; }
+
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2a2a35; padding-bottom: 12px; margin-bottom: 15px; }
+        .symbol { font-size: 20px; font-weight: bold; color: #fff; }
+        .price-box { text-align: left; }
+        .current-price { font-size: 22px; font-weight: bold; color: #fff; }
+        .change { font-size: 14px; font-weight: bold; margin-top: 2px; }
+
+        .signal-box { text-align: center; padding: 15px; border-radius: 8px; background: #1e1e28; margin-bottom: 15px; }
+        .signal-title { font-size: 18px; font-weight: bold; margin-bottom: 8px; }
+        .signal-desc { font-size: 13px; color: #bbb; line-height: 1.5; }
+
+        .action-plan { display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px; }
+        .plan-row { display: flex; justify-content: space-between; align-items: center; background: #1e1e28; padding: 12px 15px; border-radius: 8px; }
+        .plan-label { font-size: 14px; color: #aaa; }
+        .plan-value { font-size: 17px; font-weight: bold; }
+
+        .val-entry { color: #00ff88; }
+        .val-watch { color: #f0b90b; }
+        .val-target { color: #f0b90b; }
+        .val-stop { color: #ff4444; }
+        .val-rr { color: #66d9ff; }
+        .val-net { color: #c792ea; }
+
+        .indicators-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; background: #0d0d13; padding: 10px; border-radius: 8px; }
+        .ind-item { display: flex; justify-content: space-between; padding: 4px; border-bottom: 1px solid #1a1a24; }
+
+        .btn-refresh { display: block; width: 100%; padding: 14px; background: linear-gradient(90deg, #f0b90b, #f8d12f); color: #000; font-weight: bold; font-size: 16px; border: none; border-radius: 8px; margin-bottom: 12px; cursor: pointer; box-shadow: 0 4px 10px rgba(240,185,11,0.3); }
+        .btn-refresh:active { transform: scale(0.98); }
+
+        .loading { text-align: center; color: #f0b90b; font-size: 16px; margin-top: 30px; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+    </style>
+</head>
+<body>
+
+    <video id="keep-alive-video" muted playsinline loop style="position:fixed;width:1px;height:1px;opacity:0.01;pointer-events:none;bottom:0;right:0;"></video>
+
+    <h2>🧠 رادار التداول الفوري</h2>
+    <div class="subtitle">تبديل ذكي بين الصفقات القصيرة (30د–8س) والمتوسطة (4س+)</div>
+
+    <div class="mode-switcher">
+        <button id="btn-short" class="mode-btn active" onclick="setTradingMode('short')">⚡ قصير المدى (30د – 8س)</button>
+        <button id="btn-swing" class="mode-btn swing" onclick="setTradingMode('swing')">📈 متوسط المدى (4س+)</button>
+    </div>
+
+    <button class="btn-refresh" onclick="requestNotificationPermission()">🔔 تفعيل الإشعارات وحفظ النشاط</button>
+    <button class="btn-refresh" onclick="manualRefresh()" style="background: #333; color: #fff; box-shadow: none;">🔄 تحديث فوري</button>
+
+    <div id="timer-bar">جاري التجهيز...</div>
+    <div id="status-bar" class="status-bar">آخر تحديث ناجح: لم يتم بعد | وضع حفظ النشاط: متوقف</div>
+
+    <div id="results">
+        <div class="loading" id="loading">جاري تحليل السوق بدقة...</div>
+    </div>
+
+    <script>
+        const tradingModes = {
+            short: {
+                key: 'short',
+                label: 'قصير المدى (30د–8س)',
+                timeframe: '1h',
+                fastTimeframe: '15m',
+                trendTimeframe: '4h',
+                trendEmaPeriod: 50,
+                limit: 150,
+                refreshSecs: 30,
+                oversoldThreshold: 38,
+                overboughtThreshold: 62,
+                volumeMultiplier: 1.15,
+                stopAtrMult: 0.85,
+                targetAtrMult: 1.35,
+                minNetGainPct: 0.45,
+                feeAndSlippagePct: 0.20
+            },
+            swing: {
+                key: 'swing',
+                label: 'متوسط المدى (4س+)',
+                timeframe: '4h',
+                fastTimeframe: '1h',
+                trendTimeframe: '1d',
+                trendEmaPeriod: 50,
+                limit: 150,
+                refreshSecs: 60,
+                oversoldThreshold: 35,
+                overboughtThreshold: 65,
+                volumeMultiplier: 1.20,
+                stopAtrMult: 1.50,
+                targetAtrMult: 2.30,
+                minNetGainPct: 1.20,
+                feeAndSlippagePct: 0.20
+            }
+        };
+
+        let currentMode = 'short';
+        let countdownInterval;
+        let timeLeft = tradingModes.short.refreshSecs;
+        let cycleStartTime = Date.now();
+        let isFetching = false;
+        let lastSuccessfulUpdate = null;
+        let keepAliveStarted = false;
+
+        let lastStatusIsError = false;
+        let lastStatusText = "آخر تحديث ناجح: لم يتم بعد";
+
+        let lastAlertState = {
+            short: { "ETHUSDT": "wait", "SOLUSDT": "wait" },
+            swing: { "ETHUSDT": "wait", "SOLUSDT": "wait" }
+        };
+
+        const macroEvents = [
+            { date: "2026-11-26", name: "عيد الشكر، الأسواق الأمريكية مغلقة", impact: "medium" },
+            { date: "2026-12-08", name: "بداية اجتماع FOMC", impact: "high" },
+            { date: "2026-12-09", name: "قرار FOMC والمؤتمر الصحفي", impact: "high" },
+        ];
+
+        function renderStatusText() {
+            const statusBar = document.getElementById("status-bar");
+            const keepAliveLabel = keepAliveStarted ? "وضع حفظ النشاط: نشط" : "وضع حفظ النشاط: متوقف";
+            statusBar.style.color = lastStatusIsError ? "#ff6666" : "#aaa";
+            statusBar.textContent = `${lastStatusText} | ${keepAliveLabel}`;
+        }
+
+        function updateStatusBar(message, isError = false) {
+            lastStatusText = message;
+            lastStatusIsError = isError;
+            renderStatusText();
+        }
+
+        function enableKeepAliveMedia() {
+            const video = document.getElementById("keep-alive-video");
+            if (!video || !video.captureStream) return;
+
+            if (!keepAliveStarted) {
+                const canvas = document.createElement("canvas");
+                canvas.width = 16;
+                canvas.height = 16;
+                const ctx = canvas.getContext("2d");
+                ctx.fillStyle = "#0a0a0f";
+                ctx.fillRect(0, 0, 16, 16);
+
+                const stream = canvas.captureStream(1);
+                video.srcObject = stream;
+            }
+
+            video.play().then(() => {
+                keepAliveStarted = true;
+                renderStatusText();
+            }).catch(() => {});
+        }
+
+        function setTradingMode(mode) {
+            if (!tradingModes[mode]) return;
+            currentMode = mode;
+
+            document.getElementById("btn-short").classList.toggle("active", mode === "short");
+            document.getElementById("btn-swing").classList.toggle("active", mode === "swing");
+
+            document.getElementById("results").innerHTML = `<div class="loading">جاري التحويل إلى وضع ${tradingModes[mode].label}...</div>`;
+            clearInterval(countdownInterval);
+            executeAnalysis();
+        }
+
+        function requestNotificationPermission() {
+            enableKeepAliveMedia();
+
+            if (!("Notification" in window)) {
+                alert("متصفحك لا يدعم الإشعارات، ولكن تم تفعيل وضع حفظ النشاط.");
+                return;
+            }
+            Notification.requestPermission().then(permission => {
+                if (permission === "granted") {
+                    new Notification("تم تفعيل الرادار بنجاح!", { body: "سيتم تنبيهك عند وجود فرص تداول." });
+                    playBeep("buy");
+                }
+            });
+        }
+
+        function playBeep(type = "buy") {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.type = type === "sell" ? "triangle" : "sine";
+                oscillator.frequency.setValueAtTime(type === "sell" ? 520 : 880, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.3);
+            } catch (e) {
+                console.log("الصوت غير مدعوم", e);
+            }
+        }
+
+        function sendNotification(symbol, title, body, alertType) {
+            if (Notification.permission === "granted") {
+                new Notification(`[${tradingModes[currentMode].label}] ${symbol}: ${title}`, { body: body });
+            }
+            playBeep(alertType);
+        }
+
+        async function fetchData(symbol, interval, itemLimit = 150) {
+            const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${itemLimit}`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error("فشل الاتصال بباينانس");
+            return await res.json();
+        }
+
+        function calculateEMAArray(values, period) {
+            if (!values || values.length < period) return [];
+            const k = 2 / (period + 1);
+            let sma = values.slice(0, period).reduce((sum, v) => sum + v, 0) / period;
+            let emaArray = new Array(period - 1).fill(null);
+            emaArray.push(sma);
+
+            for (let i = period; i < values.length; i++) {
+                const prevEma = emaArray[i - 1];
+                emaArray.push((values[i] * k) + (prevEma * (1 - k)));
+            }
+            return emaArray;
+        }
+
+        function calculateMACD(closes) {
+            const ema12 = calculateEMAArray(closes, 12);
+            const ema26 = calculateEMAArray(closes, 26);
+
+            const macdSeries = [];
+            for (let i = 0; i < closes.length; i++) {
+                if (ema12[i] !== null && ema26[i] !== null) {
+                    macdSeries.push(ema12[i] - ema26[i]);
+                }
+            }
+
+            if (macdSeries.length < 9) {
+                return { histogram: 0 };
+            }
+
+            const signalSeries = calculateEMAArray(macdSeries, 9);
+            const lastMacd = macdSeries[macdSeries.length - 1];
+            const lastSignal = signalSeries[signalSeries.length - 1];
+            const histogram = (lastMacd !== null && lastSignal !== null) ? (lastMacd - lastSignal) : 0;
+
+            return { histogram };
+        }
+
+        function calculateWilderRSI(closes, period = 14) {
+            if (closes.length <= period) return 50;
+
+            let gains = 0;
+            let losses = 0;
+
+            for (let i = 1; i <= period; i++) {
+                const diff = closes[i] - closes[i - 1];
+                if (diff >= 0) gains += diff;
+                else losses += Math.abs(diff);
+            }
+
+            let avgGain = gains / period;
+            let avgLoss = losses / period;
+
+            for (let i = period + 1; i < closes.length; i++) {
+                const diff = closes[i] - closes[i - 1];
+                const currentGain = diff > 0 ? diff : 0;
+                const currentLoss = diff < 0 ? Math.abs(diff) : 0;
+
+                avgGain = ((avgGain * (period - 1)) + currentGain) / period;
+                avgLoss = ((avgLoss * (period - 1)) + currentLoss) / period;
+            }
+
+            if (avgLoss === 0) return 100;
+            const rs = avgGain / avgLoss;
+            return 100 - (100 / (1 + rs));
+        }
+
+        function calculateATR(klines, period = 14) {
+            if (klines.length <= period) return 0;
+            let trs = [];
+            for (let i = 1; i < klines.length; i++) {
+                const high = parseFloat(klines[i][2]);
+                const low = parseFloat(klines[i][3]);
+                const prevClose = parseFloat(klines[i - 1][4]);
+                const tr = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
+                trs.push(tr);
+            }
+
+            let atr = trs.slice(0, period).reduce((a, b) => a + b, 0) / period;
+            for (let i = period; i < trs.length; i++) {
+                atr = ((atr * (period - 1)) + trs[i]) / period;
+            }
+            return atr;
+        }
+
+        function calcGrossGainPct(entry, target, isShortSale = false) {
+            if (entry <= 0) return 0;
+            if (isShortSale) return ((entry - target) / entry) * 100;
+            return ((target - entry) / entry) * 100;
+        }
+
+        function formatRR(entry, target, stop) {
+            const risk = Math.abs(entry - stop);
+            const reward = Math.abs(target - entry);
+            if (risk <= 0 || reward <= 0) return "غير متاح";
+            return `1 : ${(reward / risk).toFixed(2)}`;
+        }
+
+        async function analyzeCoin(symbol, name) {
+            const cfg = tradingModes[currentMode];
+
+            const [klines, fastKlines, trendKlines] = await Promise.all([
+                fetchData(symbol, cfg.timeframe, cfg.limit),
+                fetchData(symbol, cfg.fastTimeframe, 80),
+                fetchData(symbol, cfg.trendTimeframe, 90)
+            ]);
+
+            const closes = klines.map(k => parseFloat(k[4]));
+            const volumes = klines.map(k => parseFloat(k[5]));
+            const fastCloses = fastKlines.map(k => parseFloat(k[4]));
+            const trendCloses = trendKlines.map(k => parseFloat(k[4]));
+
+            const currentPrice = closes[closes.length - 1];
+            const prevPrice = closes[closes.length - 2];
+            const changePercent = ((currentPrice - prevPrice) / prevPrice) * 100;
+
+            const lastClosedCandle = klines[klines.length - 2];
+            const H = parseFloat(lastClosedCandle[2]);
+            const L = parseFloat(lastClosedCandle[3]);
+            const C = parseFloat(lastClosedCandle[4]);
+            const P = (H + L + C) / 3;
+            const R1 = (2 * P) - L;
+            const S1 = (2 * P) - H;
+
+            const rsi = calculateWilderRSI(closes, 14);
+            const ema20Series = calculateEMAArray(closes, 20);
+            const ema20 = ema20Series[ema20Series.length - 1] ?? currentPrice;
+            const macd = calculateMACD(closes);
+            const atr = calculateATR(klines, 14);
+
+            const fastMacd = calculateMACD(fastCloses);
+            const isFastMomentumUp = fastMacd.histogram > 0;
+
+            const trendEmaSeries = calculateEMAArray(trendCloses, cfg.trendEmaPeriod);
+            const trendEma = trendEmaSeries[trendEmaSeries.length - 1] ?? currentPrice;
+            const isHigherTrendBullish = currentPrice >= trendEma;
+
+            const avgVolume = volumes.slice(-20, -1).reduce((a, b) => a + b, 0) / 19;
+            const currentVolume = volumes[volumes.length - 1];
+            const isVolumeSpike = avgVolume > 0 && currentVolume > (avgVolume * cfg.volumeMultiplier);
+
+            const isUptrend = currentPrice > ema20;
+            const isNearSupport = currentPrice <= (S1 * 1.008);
+            const isClosedAboveR1 = C > R1;
+            const isOversold = rsi < cfg.oversoldThreshold;
+            const isOverbought = rsi > cfg.overboughtThreshold;
+            const isMacdBullish = macd.histogram > 0;
+            const isMacdBearish = macd.histogram < 0;
+
+            let signalTitle = "⏳ انتظار (المؤشرات غير متوافقة)";
+            let signalDesc = "لا توجد إشارة واضحة مكتملة الشروط حالياً. السعر المعروض أدناه مستوى مراقبة وليس دخولاً مفعّلاً.";
+            let cardClass = "wait-zone";
+            let signalColor = "#f0b90b";
+
+            let entryPrice = (S1 > 0 && S1 < currentPrice) ? S1 : (currentPrice - (atr * 0.5));
+            let stopLoss = entryPrice - (atr * cfg.stopAtrMult);
+            let targetPrice = entryPrice + (atr * cfg.targetAtrMult);
+            let alertType = "wait";
+            let isShortAlert = false;
+
+            const momentumCondition = currentMode === "short" ? (isMacdBullish || isFastMomentumUp) : isMacdBullish;
+
+            if (isNearSupport && isOversold && momentumCondition && isVolumeSpike) {
+                signalTitle = currentMode === "short"
+                    ? "⚡ ارتداد قصير المدى (دعم + زخم + سيولة)"
+                    : "💎 شراء مؤكد (توافق استثنائي)";
+                signalDesc = currentMode === "short"
+                    ? "ارتداد قريب من الدعم السريع مع تشبع بيعي وسيولة داعمة لهدف ربحي قريب."
+                    : "السعر عند الدعم + RSI منخفض + الماكد إيجابي + سيولة عالية.";
+                cardClass = "buy-zone";
+                signalColor = "#00ff88";
+                entryPrice = currentPrice;
+                stopLoss = currentPrice - (atr * cfg.stopAtrMult);
+                targetPrice = currentMode === "short"
+                    ? Math.min(R1 > currentPrice ? R1 : currentPrice + (atr * cfg.targetAtrMult), currentPrice + (atr * cfg.targetAtrMult))
+                    : Math.max(R1, currentPrice + (atr * cfg.targetAtrMult));
+                alertType = "buy";
+            } else if (isClosedAboveR1 && isUptrend && isMacdBullish && !isOverbought && isVolumeSpike) {
+                signalTitle = "🚀 اختراق مؤكد بإغلاق وسيولة";
+                signalDesc = "إغلاق شمعة مكتملة فوق المقاومة R1 مع دعم الزخم والسيولة.";
+                cardClass = "buy-zone";
+                signalColor = "#00ff88";
+                entryPrice = currentPrice;
+                stopLoss = Math.max(R1 * 0.993, currentPrice - (atr * cfg.stopAtrMult));
+                targetPrice = currentPrice + (atr * cfg.targetAtrMult);
+                alertType = "buy";
+            } else if (isOverbought && isMacdBearish && !isFastMomentumUp) {
+                signalTitle = "🔴 جني أرباح / إشارة بيع";
+                signalDesc = "تشبع شرائي مع تراجع زخم الماكد على الفريم الأساسي والسريع.";
+                cardClass = "sell-zone";
+                signalColor = "#ff4444";
+                entryPrice = currentPrice;
+                stopLoss = currentPrice + (atr * cfg.stopAtrMult);
+                targetPrice = Math.max(S1, currentPrice - (atr * cfg.targetAtrMult));
+                alertType = "sell";
+                isShortAlert = true;
+            }
+
+            const grossGainPct = calcGrossGainPct(entryPrice, targetPrice, isShortAlert);
+            const netGainPct = grossGainPct - cfg.feeAndSlippagePct;
+
+            if (alertType !== "wait" && netGainPct < cfg.minNetGainPct) {
+                signalTitle = "⏳ انتظار (هامش الربح الصافي ضعيف بعد الرسوم)";
+                signalDesc = `الهدف الحالي يعطي ربحاً صافياً تقديرياً ${netGainPct.toFixed(2)}% فقط بعد تقدير رسوم/انزلاق ~${cfg.feeAndSlippagePct}%.`;
+                cardClass = "wait-zone";
+                signalColor = "#f0b90b";
+                entryPrice = (S1 > 0 && S1 < currentPrice) ? S1 : (currentPrice - (atr * 0.5));
+                stopLoss = entryPrice - (atr * cfg.stopAtrMult);
+                targetPrice = entryPrice + (atr * cfg.targetAtrMult);
+                alertType = "wait";
+                isShortAlert = false;
+            }
+
+            const modeAlerts = lastAlertState[currentMode];
+            if (alertType !== "wait" && modeAlerts[symbol] !== alertType) {
+                sendNotification(symbol, signalTitle, `السعر الحالي: $${currentPrice.toFixed(2)} | صافي متوقع: +${netGainPct.toFixed(2)}%\n${signalDesc}`, alertType);
+                modeAlerts[symbol] = alertType;
+            } else if (alertType === "wait") {
+                modeAlerts[symbol] = "wait";
+            }
+
+            const finalGrossGainPct = calcGrossGainPct(entryPrice, targetPrice, isShortAlert);
+            const finalNetGainPct = finalGrossGainPct - cfg.feeAndSlippagePct;
+            const changeColor = changePercent >= 0 ? "#00ff88" : "#ff4444";
+            const changeSign = changePercent >= 0 ? "+" : "";
+            const rrText = formatRR(entryPrice, targetPrice, stopLoss);
+            const isWaiting = alertType === "wait";
+
+            return `
+                <div class="card ${cardClass}">
+                    <div class="header">
+                        <div class="symbol">${name}<br><small style="font-size:12px; color:#888">${symbol} • ${cfg.timeframe}</small></div>
+                        <div class="price-box">
+                            <div class="current-price">$${currentPrice.toFixed(2)}</div>
+                            <div class="change" style="color: ${changeColor}">${changeSign}${changePercent.toFixed(2)}%</div>
+                        </div>
+                    </div>
+
+                    <div class="signal-box">
+                        <div class="signal-title" style="color: ${signalColor}">${signalTitle}</div>
+                        <div class="signal-desc">${signalDesc}</div>
+                    </div>
+
+                    <div class="action-plan">
+                        <div class="plan-row">
+                            <span class="plan-label">${isWaiting ? "مستوى مراقبة / دخول محتمل:" : "سعر الدخول المقترح:"}</span>
+                            <span class="plan-value ${isWaiting ? "val-watch" : "val-entry"}">$${entryPrice.toFixed(2)}</span>
+                        </div>
+                        <div class="plan-row">
+                            <span class="plan-label">هدف البيع (جني الأرباح):</span>
+                            <span class="plan-value val-target">$${targetPrice.toFixed(2)}</span>
+                        </div>
+                        <div class="plan-row">
+                            <span class="plan-label">وقف الخسارة الذكي (ATR):</span>
+                            <span class="plan-value val-stop">$${stopLoss.toFixed(2)}</span>
+                        </div>
+                        <div class="plan-row">
+                            <span class="plan-label">صافي الربح التقديري (بعد الرسوم):</span>
+                            <span class="plan-value val-net">${finalNetGainPct >= 0 ? "+" : ""}${finalNetGainPct.toFixed(2)}%</span>
+                        </div>
+                        <div class="plan-row">
+                            <span class="plan-label">نسبة العائد للمخاطرة (R:R):</span>
+                            <span class="plan-value val-rr">${rrText}</span>
+                        </div>
+                    </div>
+
+                    <div class="indicators-grid">
+                        <div class="ind-item"><span>RSI (14 Wilder)</span> <b style="color:${rsi > cfg.overboughtThreshold ? '#ff4444' : rsi < cfg.oversoldThreshold ? '#00ff88' : '#fff'}">${rsi.toFixed(1)}</b></div>
+                        <div class="ind-item"><span>MACD (${cfg.timeframe})</span> <b style="color:${isMacdBullish ? '#00ff88' : '#ff4444'}">${isMacdBullish ? 'إيجابي' : 'سلبي'}</b></div>
+                        <div class="ind-item"><span>زخم (${cfg.fastTimeframe})</span> <b style="color:${isFastMomentumUp ? '#00ff88' : '#ff4444'}">${isFastMomentumUp ? 'صاعد' : 'هابط'}</b></div>
+                        <div class="ind-item"><span>اتجاه (${cfg.trendTimeframe} EMA50)</span> <b style="color:${isHigherTrendBullish ? '#00ff88' : '#ff4444'}">${isHigherTrendBullish ? 'صاعد' : 'هابط'}</b></div>
+                        <div class="ind-item"><span>السيولة (Volume)</span> <b style="color:${isVolumeSpike ? '#f0b90b' : '#888'}">${isVolumeSpike ? 'عالية' : 'عادية'}</b></div>
+                        <div class="ind-item"><span>ATR (14)</span> <b style="color:#ccc">$${atr.toFixed(2)}</b></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function startCountdown() {
+            clearInterval(countdownInterval);
+            const totalSecs = tradingModes[currentMode].refreshSecs;
+            cycleStartTime = Date.now();
+            timeLeft = totalSecs;
+            const timerBar = document.getElementById("timer-bar");
+            timerBar.classList.remove("flash");
+            timerBar.textContent = `⏱️ التحديث التلقائي (${tradingModes[currentMode].label}) بعد: ${timeLeft} ثانية`;
+
+            countdownInterval = setInterval(() => {
+                const elapsedSecs = Math.floor((Date.now() - cycleStartTime) / 1000);
+                timeLeft = Math.max(0, totalSecs - elapsedSecs);
+                timerBar.textContent = `⏱️ التحديث التلقائي (${tradingModes[currentMode].label}) بعد: ${timeLeft} ثانية`;
+
+                if (timeLeft <= 0) {
+                    clearInterval(countdownInterval);
+                    timerBar.textContent = "🔄 جاري التحديث...";
+                    timerBar.classList.add("flash");
+                    executeAnalysis();
+                }
+            }, 1000);
+        }
+
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible") {
+                if (keepAliveStarted) {
+                    enableKeepAliveMedia();
+                }
+                const totalSecs = tradingModes[currentMode].refreshSecs;
+                const elapsedSecs = Math.floor((Date.now() - cycleStartTime) / 1000);
+                timeLeft = Math.max(0, totalSecs - elapsedSecs);
+                const timerBar = document.getElementById("timer-bar");
+
+                if (timeLeft <= 0 && !isFetching) {
+                    clearInterval(countdownInterval);
+                    timerBar.textContent = "🔄 جاري التحديث...";
+                    timerBar.classList.add("flash");
+                    executeAnalysis();
+                } else {
+                    timerBar.textContent = `⏱️ التحديث التلقائي (${tradingModes[currentMode].label}) بعد: ${timeLeft} ثانية`;
+                }
+            }
+        });
+
+        async function executeAnalysis() {
+            if (isFetching) return;
+            isFetching = true;
+
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                const upcomingEvent = macroEvents.find(e => e.date >= today);
+
+                const [ethHTML, solHTML] = await Promise.all([
+                    analyzeCoin("ETHUSDT", "الإيثريوم"),
+                    analyzeCoin("SOLUSDT", "سولانا")
+                ]);
+
+                let macroHTML = "";
+                if (upcomingEvent) {
+                    macroHTML = `
+                        <div class="macro-alert">
+                            ⚠️ تنبيه ماكرو: <b>${upcomingEvent.name}</b> (${upcomingEvent.date})<br>
+                            <small>التقلبات قد تكون عالية، يُنصح بالحذر وتقليل حجم المركز.</small>
+                        </div>
+                    `;
+                }
+
+                document.getElementById("results").innerHTML = macroHTML + ethHTML + solHTML;
+                lastSuccessfulUpdate = new Date().toLocaleTimeString("ar-EG");
+                updateStatusBar(`الوضع الحالي: ${tradingModes[currentMode].label} | آخر تحديث ناجح: ${lastSuccessfulUpdate}`);
+                startCountdown();
+            } catch (error) {
+                console.error("خطأ:", error);
+                const prevTimeText = lastSuccessfulUpdate ? ` (آخر تحديث ناجح: ${lastSuccessfulUpdate})` : "";
+                updateStatusBar(`تعذر تحديث البيانات حالياً${prevTimeText}`, true);
+                startCountdown();
+            } finally {
+                isFetching = false;
+            }
+        }
+
+        function manualRefresh() {
+            const timerBar = document.getElementById("timer-bar");
+            timerBar.textContent = "🔄 جاري التحديث اليدوي...";
+            timerBar.classList.add("flash");
+            clearInterval(countdownInterval);
+            executeAnalysis();
+        }
+
+        executeAnalysis();
+    </script>
+</body>
+</html>
